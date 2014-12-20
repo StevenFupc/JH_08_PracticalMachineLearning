@@ -1,0 +1,128 @@
+<div align="center"> 
+### Practical Machine Learning Assignment Report
+
+Amy Jiang    
+December 19 2014  </div>
+___
+
+#### Libaries
+The following packages are used in this project:
+
+```{r message=FALSE}
+library(Hmisc)
+library(caret)
+library(randomForest)
+library(foreach)
+library(doParallel)
+```
+<br /><br />
+
+#### Getting Data
+The pml-training.csv data is used to obtain training and testing sets. The pml-testing.csv data is used to predict and answer the 20 questions based on the trained model.
+
+```{r}
+training.file   <- 'data/pml-training.csv'
+test.cases.file <- 'data/pml-testing.csv'
+training.url    <- 'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv'
+test.cases.url  <- 'http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv'
+download.file(training.url, training.file)
+download.file(test.cases.url,test.cases.file )
+```
+<br /><br />
+
+#### Cleaning Data
+In order to clean data, all blank('""'), '#DIV/0' and 'NA' values were converted to 'NA', any Columns containing 'NA' were removed from both downloaded data sets.
+
+```{r}
+training.df   <-read.csv(training.file, na.strings=c("NA","#DIV/0!", ""))
+test.cases.df <-read.csv(test.cases.file , na.strings=c("NA", "#DIV/0!", ""))
+training.df<-training.df[,colSums(is.na(training.df)) == 0]
+test.cases.df <-test.cases.df[,colSums(is.na(test.cases.df)) == 0]
+```
+
+Since 'user_name', 'raw_timestamp_part_1', 'raw_timestamp_part_2', 'cvtd_timestamp', 'new_window num_window' are not related to calculations, they are removed form the downloaded data.
+
+```{r}
+training.df   <-training.df[,-c(1:7)]
+test.cases.df <-test.cases.df[,-c(1:7)]
+```
+<br /><br />
+
+#### Cross Validation
+We created a random sample of the data into training (60%) and testing(40%) dataset using set.seed(12345).
+
+```{r}
+set.seed(12345)
+inTraining.matrix    <- createDataPartition(training.df$classe, p = 0.60, list = FALSE)
+training.data.df <- training.df[inTraining.matrix, ]
+testing.data.df  <- training.df[-inTraining.matrix, ]
+```
+<br /><br />
+
+#### Using Random Forests
+We set the outcome variable as 'classe' and all other variables that assist in determining classe are defined as 'variables'. 
+
+```{r}
+registerDoParallel()
+classe <- training.data.df$classe
+variables <- training.data.df[-ncol(training.data.df)]
+```
+
+We used 1000 trees in our model. Since our computer has four cores, we split up the problem into four pieces. This is accomplished by executing the randomForest function four times, with the ntree argument set to 250.
+
+```{r}
+rf <- foreach(ntree=rep(250, 4), .combine=randomForest::combine, .packages='randomForest') %dopar% {
+randomForest(variables, classe, ntree=ntree) 
+}
+```
+<br /><br />
+
+#### Confusion Matrix on predicting training dataset
+To measure the performance of the prediction model on training data, we generated the accuracy confusion matrix for the training set (60% of the training data)
+
+```{r}
+training.predictions <- predict(rf, newdata=training.data.df)
+confusionMatrix(training.predictions,training.data.df$classe)
+```
+<br /><br />
+
+#### Confusion Matrix on predicting testing dataset
+To measure the performance of the prediction model on testing data, we generated the accuracy confusion matrix for the testing dataset (40% of the training data).
+
+```{r}
+testing.predictions <- predict(rf, newdata=testing.data.df)
+confusionMatrix(testing.predictions,testing.data.df$classe)
+```
+
+Comparing the perfomrance between two confusion matrix, we could see the performance are high for both of them.
+<br /><br />
+
+#### Applying the model to test cases data and generate submitted files
+We used the provided method to write answers to separate .txt files
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("output/problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+```
+
+Using the built model df, we predict the answers to the 20 questions in test case files.
+
+```{r}
+feature_set <- colnames(training.df)
+x <- test.cases.df
+x <- x[feature_set[feature_set!='classe']]
+answers <- predict(rf, newdata=x)
+answers
+```
+
+Finally, we wrote the answers to the text files for submission to coursera
+
+```{r}
+pml_write_files(answers)
+```
+<br /><br />
