@@ -28,6 +28,41 @@ What are the accuracies for the two approaches on the test data set? What is the
     GBM Accuracy = 0.5325
     Agreement Accuracy = 0.6518
 
+```{r results='hide', warning=FALSE, message=FALSE}
+library(caret)
+library(ElemStatLearn)
+library(gbm)
+data(vowel.train)
+data(vowel.test) 
+
+vowel.train$y <- as.factor(vowel.train$y)
+vowel.test$y <- as.factor(vowel.test$y)
+
+set.seed(33833)
+model1 <- train(y~., method="rf", data = vowel.train)
+model2 <- train(y~., method="gbm", data = vowel.train)
+
+model1.predict <- predict(model1, newdata = vowel.test)
+model2.predict <- predict(model2, newdata = vowel.test)
+
+hat <- data.frame(model1.predict,
+model2.predict,
+y = vowel.test$y,
+agree = model1.predict == model2.predict)
+
+sum(model1.predict[hat$agree] == hat$y[hat$agree]) / sum(hat$agree)
+
+data.combined <- data.frame(model1.predict, model2.predict, y = vowel.test$y)
+model.combined <- train(y ~ ., data = data.combined, method = "rf")
+predict.combined <- predict(model.combined, newdata = vowel.test)
+```
+
+```{r}
+confusionMatrix(model1.predict, vowel.test$y)$overall
+confusionMatrix(model2.predict, vowel.test$y)$overall
+confusionMatrix(predict.combined, vowel.test$y)$overall
+```
+
 ### Question 2
 
 Load the Alzheimer's data using the following commands
@@ -49,6 +84,35 @@ Set the seed to 62433 and predict diagnosis with all the other variables using a
     Stacked Accuracy: 0.76 is better than random forests and boosting, but not lda.
     Stacked Accuracy: 0.69 is better than all three other methods
 
+```{r results='hide', warning=FALSE, message=FALSE}
+library(caret)
+library(gbm)
+set.seed(3433)
+library(AppliedPredictiveModeling)
+data(AlzheimerDisease)
+adData = data.frame(diagnosis,predictors)
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+
+set.seed(62433)
+model1 <- train(diagnosis ~ ., data=training, method="rf")
+model2 <- train(diagnosis ~ ., data=training, method="gbm")
+model3 <- train(diagnosis ~ ., data=training, method="lda")
+model1.predict <- predict(model1, testing)
+model2.predict <- predict(model2, testing)
+model3.predict <- predict(model3, testing)
+data.combined <- data.frame(model1.predict, model2.predict, model3.predict, diagnosis=testing$diagnosis)
+model.combined <- train(diagnosis ~ ., data=data.combined, method="rf")
+predict.combined <- predict(model.combined, testing)
+```
+```{r}
+confusionMatrix(model1.predict, testing$diagnosis)$overall
+confusionMatrix(model2.predict, testing$diagnosis)$overall
+confusionMatrix(model3.predict, testing$diagnosis)$overall
+confusionMatrix(predict.combined, testing$diagnosis)$overall
+```
+
 ### Question 3
 
 Load the concrete data with the commands:
@@ -66,6 +130,19 @@ Set the seed to 233 and fit a lasso model to predict Compressive Strength. Which
     FineAggregate
     CoarseAggregate
     Age
+
+```{r}
+set.seed(3523)
+library(AppliedPredictiveModeling)
+data(concrete)
+inTrain = createDataPartition(concrete$CompressiveStrength, p = 3/4)[[1]]
+training = concrete[ inTrain,]
+testing = concrete[-inTrain,]
+
+set.seed = 233
+model1  <- train(CompressiveStrength~., method = "lasso", training)
+plot.enet(model1$finalModel, xvar="penalty")
+```
 
 ### Question 4
 
@@ -87,6 +164,34 @@ Fit a model using the bats() function in the forecast package to the training ti
     92%
     94%
 
+```{r}
+library(lubridate) 
+library(forecast)
+
+if(!"goData.csv" %in% dir("./")) {
+    download.file(url = "http://d396qusza40orc.cloudfront.net/predmachlearn/gaData.csv", destfile = "goData.csv")
+}
+data <- read.csv("goData.csv", header = TRUE)
+training = data[year(data$date) < 2012,]
+testing = data[(year(data$date)) > 2011,]
+training.ts = ts(training$visitsTumblr)
+
+model1 <- bats(training.ts)
+nrow(testing)
+model1.forecast <- forecast(model1, level = 95, h=235)
+
+accuracy(model1.forecast, testing$visitsTumblr)
+
+result <- c()
+l <- length(model1.forecast$lower)
+for (i in 1:l){
+x <- testing$visitsTumblr[i]
+a <- model1.forecast$lower[i] < x & x < model1.forecast$upper[i]
+result <- c(result, a)
+}
+sum(result)/l * 100
+```
+
 ### Question 5
 
 Load the concrete data with the commands:
@@ -104,3 +209,19 @@ Set the seed to 325 and fit a support vector machine using the e1071 package to 
     6.93
     35.59
     6.72
+
+```{r}
+set.seed(3523)
+library(AppliedPredictiveModeling)
+data(concrete)
+inTrain = createDataPartition(concrete$CompressiveStrength, p = 3/4)[[1]]
+training = concrete[ inTrain,]
+testing = concrete[-inTrain,]
+
+set.seed = 325
+library(e1071)
+library(caret)
+model1 <- svm(CompressiveStrength~., training)
+model1.predict  <- predict(model1, testing)
+accuracy(model1.predict, testing$CompressiveStrength)
+```

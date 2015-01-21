@@ -36,6 +36,17 @@ Which of the following commands will create training and test sets with about 50
     training = adData[trainIndex,]
     testing = adData[-trainIndex,]
 
+```{r}
+library(AppliedPredictiveModeling)
+library(caret)
+data(AlzheimerDisease)
+
+adData = data.frame(diagnosis, predictors)
+trainIndex = createDataPartition(diagnosis, p = 0.5, list = FALSE)
+training = adData[trainIndex, ]
+testing = adData[-trainIndex, ]
+```
+
 ### Question 2
 
 Load the cement data using the commands:
@@ -54,6 +65,44 @@ Make a plot of the outcome (CompressiveStrength) versus the index of the samples
     The data show a step like pattern that is perfectly explained by the FlyAsh variable so there may be a variable missing.
     The data show a step like pattern that is perfectly explained by the Age variable.
     There is a step-like pattern in the plot of outcome versus index in the training set that isn't explained by any of the predictor variables so there may be a variable missing.
+
+```{r fig.width = 12 }
+library(AppliedPredictiveModeling)
+data(concrete)
+library(caret)
+library(Hmisc)
+set.seed(3)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 1/2)[[1]]
+training = mixtures[ inTrain,]
+testing = mixtures[-inTrain,]
+
+par(mfcol = c(1:2))
+plot(inTrain)
+plot(training$CompressiveStrength)
+
+featurePlot(x = training[,c('Cement',
+'BlastFurnaceSlag',
+'FlyAsh',
+'Water',
+'Superplasticizer',
+'CoarseAggregate',
+'FineAggregate', 'Age')],
+y = training$CompressiveStrength )
+
+cut.index <- cut2(training$CompressiveStrength, g=4)
+
+dev.off()
+par(mfrow=c(4,2), mar=c(1,1,2,1))
+boxplot(training$Cement~cut.index, main="Cement")
+boxplot(training$BlastFurnaceSlag~cut.index, main="BlastFurnaceSlag")
+boxplot(training$FlyAsh~cut.index, main="FlyAsh")
+boxplot(training$Water~cut.index, main="Water")
+boxplot(training$Superplasticizer~cut.index, main="Superplasticizer")
+boxplot(training$CoarseAggregate~cut.index, main="CoarseAggregate")
+boxplot(training$FineAggregate~cut.index, main="FineAggregate")
+boxplot(training$Age~cut.index, main="Age")
+
+```
 
 ### Question 3
 
@@ -74,6 +123,18 @@ Make a histogram and confirm the SuperPlasticizer variable is skewed. Normally y
     The SuperPlasticizer data include negative values so the log transform can not be performed.
     The log transform produces negative values which can not be used by some classifiers.
 
+```{r}
+library(AppliedPredictiveModeling)
+data(concrete)
+library(caret)
+set.seed(975)
+inTrain = createDataPartition(mixtures$CompressiveStrength, p = 3/4)[[1]]
+training = mixtures[ inTrain,]
+testing = mixtures[-inTrain,]
+
+hist(training$Superplasticizer)
+```
+
 ### Question 4
 
 Load the Alzheimer's disease data using the commands:
@@ -93,6 +154,20 @@ Find all the predictor variables in the training set that begin with IL. Perform
     12
     7
     9
+
+```{r}
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(3433)
+data(AlzheimerDisease)
+adData = data.frame(diagnosis,predictors)
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+
+IL.index <- grep("^IL", colnames(training))
+preProcess(training[,IL.index], method = "pca", thresh = 0.8)
+```
 
 ### Question 5
 
@@ -117,3 +192,25 @@ Create a training data set consisting of only the predictors with variable names
     PCA Accuracy: 0.93
     Non-PCA Accuracy: 0.72
     PCA Accuracy: 0.71
+    
+```{r}
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(3433)
+data(AlzheimerDisease)
+IL.index = grep("^IL", colnames(predictors))
+adData = data.frame(diagnosis,predictors[,IL.index])
+inTrain = createDataPartition(adData$diagnosis, p = 3/4)[[1]]
+training = adData[ inTrain,]
+testing = adData[-inTrain,]
+
+model1  <- train(diagnosis ~ ., method = "glm", data = training)
+model1.predict  <- predict(model1, testing)
+
+confusionMatrix(model1.predict, testing$diagnosis)
+
+model2  <- train(diagnosis ~ ., method = "glm", preProcess = "pca", data = training, trControl = trainControl(preProcOptions = list(thresh = 0.8)))
+model2.predict  <- predict(model2, testing)
+
+confusionMatrix(model2.predict, testing$diagnosis)
+```
